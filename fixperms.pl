@@ -9,13 +9,16 @@ use File::stat;
 use File::Spec;
 use Getopt::Long;
 use Pod::Usage;
+use Scalar::Util qw(looks_like_number);
 
 my $mode = undef;
-my $dirmode = undef;
 my $umask = umask;
+my $dirmode = undef;
 
 my $group = getgrgid $(;
 my $owner = getpwuid $<;
+
+my $symlinks = undef;
 
 sub mode {
     my $inode = shift;
@@ -29,6 +32,11 @@ sub mode {
 sub fixperms {
     my ($file, $uid, $gid) = @_;
     my $inode = stat($file) or die "$0: cannot stat '$file': $!\n";
+
+    if (S_ISLNK($inode->mode)) {
+        next unless $symlinks;
+        $inode = lstat($file) or die "$0: cannot stat '$file': $!\n";
+    }
 
     if (S_ISDIR($inode->mode)) {
         opendir(my $fh, $file)
@@ -46,7 +54,8 @@ sub fixperms {
 }
 
 GetOptions(
-    'dirmode|d=o' => sub { $dirmode = oct($_[1]) },
+    'dereference|l' => \$symlinks,
+    'dirmode|d=s' => sub { $dirmode = oct($_[1]) },
     'group|g=s' => \$group,
     'mode|m=s' => sub { $mode = oct($_[1]) },
     'owner|o=s' => \$owner,
@@ -54,16 +63,16 @@ GetOptions(
 ) or pod2usage(2);
 
 my $uid = getpwnam($owner);
-#$uid = int($owner) unless defined $uid or not defined getpwuid($owner);
+$uid = int($owner) if not defined $uid and looks_like_number($owner);
 die "$0: invalid user '$owner'\n" unless defined $uid;
 
 my $gid = getgrnam($group);
-#$gid = int($group) unless defined $gid or not defined getgrgid($group);
+$gid = int($group) if not defined $gid and looks_like_number($group);
 die "$0: invalid group: '$group'\n" unless defined $gid;
 
-foreach my $file (@ARGV) {
-    fixperms($file, $uid, $gid);
-}
+@ARGV = qw(.) unless @ARGV; # default to cwd
+
+fixperms($_, $uid, $gid) foreach @ARGV;
 
 __END__
 
@@ -73,11 +82,11 @@ fixperms - fix permissions of files and directories
 
 =head1 SYNOPSIS
 
-B<fixperms> [I<OPTIONS> ...] I<FILE> ...
+B<fixperms> [I<OPTION>]... [I<FILE>]...
 
 =head1 DESCRIPTION
 
-B<fixperms> sets file and directory permissions.
+B<fixperms> sets file and directory permissions to sensible values.
 
 =head1 OPTIONS
 
@@ -90,6 +99,10 @@ set directory permission mode (octal)
 =item B<-g>, B<--group>=I<GROUP>
 
 set group ownership, instead of process' current group
+
+=item B<-l>, B<--dereference>
+
+follow symlinks
 
 =item B<-m>, B<--mode>=I<MODE>
 
