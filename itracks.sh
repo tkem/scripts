@@ -1,8 +1,8 @@
 #!/bin/sh
 #
-# template.sh - shell script template
+# itracks.sh - install media files
 #
-# Copyright (C) 2012 Thomas Kemmer <tkemmer@computer.org>
+# Copyright (C) 2013 Thomas Kemmer <tkemmer@computer.org>
 #
 
 # uncomment to exit if untested command fails
@@ -11,54 +11,73 @@
 # uncomment to trace commands
 #set -x
 
+# Vorbis comment tags [http://www.xiph.org/vorbis/doc/v-comment.html]
+#
+# TITLE: Track/Work name
+#
+# VERSION: The version field may be used to differentiate multiple
+# versions of the same track title in a single collection. (e.g. remix
+# info)
+#
+# ALBUM: The collection name to which this track belongs
+#
+# TRACKNUMBER: The track number of this piece if part of a specific
+# larger collection or album
+#
+# ARTIST: The artist generally considered responsible for the work. In
+# popular music this is usually the performing band or singer. For
+# classical music it would be the composer. For an audio book it would
+# be the author of the original text.
+#
+# PERFORMER: The artist(s) who performed the work. In classical music
+# this would be the conductor, orchestra, soloists. In an audio book
+# it would be the actor who did the reading. In popular music this is
+# typically the same as the ARTIST and is omitted.
+#
+# COPYRIGHT: Copyright attribution, e.g., '2001 Nobody's Band' or
+# '1999 Jack Moffitt'
+#
+# LICENSE: License information, eg, 'All Rights Reserved', 'Any Use
+# Permitted', a URL to a license such as a Creative Commons license
+# ("www.creativecommons.org/blahblah/license.html") or the EFF Open
+# Audio License ('distributed under the terms of the Open Audio
+# License. see http://www.eff.org/IP/Open_licenses/eff_oal.html for
+# details'), etc.
+#
+# ORGANIZATION: Name of the organization producing the track (i.e. the
+# 'record label')
+#
+# DESCRIPTION: A short text description of the contents
+#
+# GENRE: A short text indication of music genre
+#
+# DATE: Date the track was recorded
+#
+# LOCATION: Location where track was recorded
+#
+# CONTACT: Contact information for the creators or distributors of the
+# track. This could be a URL, an email address, the physical address
+# of the producing label.
+#
+# ISRC: ISRC number for the track; see the ISRC intro page for more
+# information on ISRC numbers.
+#
 
+PROGRAM=$(basename $0 .sh)
 
-
-# TITLE
-#     Track/Work name
-# VERSION
-#     The version field may be used to differentiate multiple versions of the same track title in a single collection. (e.g. remix info)
-# ALBUM
-#     The collection name to which this track belongs
-# TRACKNUMBER
-#     The track number of this piece if part of a specific larger collection or album
-# ARTIST
-#     The artist generally considered responsible for the work. In popular music this is usually the performing band or singer. For classical music it would be the composer. For an audio book it would be the author of the original text.
-# PERFORMER
-#     The artist(s) who performed the work. In classical music this would be the conductor, orchestra, soloists. In an audio book it would be the actor who did the reading. In popular music this is typically the same as the ARTIST and is omitted.
-# COPYRIGHT
-#     Copyright attribution, e.g., '2001 Nobody's Band' or '1999 Jack Moffitt'
-# LICENSE
-#     License information, eg, 'All Rights Reserved', 'Any Use Permitted', a URL to a license such as a Creative Commons license ("www.creativecommons.org/blahblah/license.html") or the EFF Open Audio License ('distributed under the terms of the Open Audio License. see http://www.eff.org/IP/Open_licenses/eff_oal.html for details'), etc.
-# ORGANIZATION
-#     Name of the organization producing the track (i.e. the 'record label')
-# DESCRIPTION
-#     A short text description of the contents
-# GENRE
-#     A short text indication of music genre
-# DATE
-#     Date the track was recorded
-# LOCATION
-#     Location where track was recorded
-# CONTACT
-#     Contact information for the creators or distributors of the track. This could be a URL, an email address, the physical address of the producing label.
-# ISRC
-#     ISRC number for the track; see the ISRC intro page for more information on ISRC numbers. 
-
-
-METAFLAC=metaflac
 ID3V2=id3v2
+METAFLAC=metaflac
+MKTEMP=mktemp
 UNZIP=unzip
 
-BASEDIR="$HOME/Music"
-FORMAT='$ARTIST/$ALBUM/$TRACKNUMBER $TITLE'
-PADDING=2
-TMPDIR="/tmp/$(basename $0).$$"
-VARIOUS="Various Artists"
+OUTPUTDIR="$HOME/Music"
+OUTPUTFORMAT='$ARTIST/$ALBUM/$TRACKNUMBER $TITLE'
+TRACKPADDING=2
 
 die () {
-    [ "$@" ] && echo "$0:" "$@" >&2
-    exit 1
+    status=$?
+    [ $# -eq 0 ] || echo "$0:" "$@" >&2
+    exit $(expr $status \| 1)
 }
 
 warn () {
@@ -66,11 +85,11 @@ warn () {
 }
 
 info () {
-    [ ${VERBOSE:-0} -ge 1 ] && echo "$0:" "$@" >&2
+    [ ${VERBOSE:=0} -ge 1 ] && echo "$0:" "$@" >&2
 }
 
 debug () {
-    [ ${VERBOSE:-0} -ge 2 ] && echo "$0:" "$@" >&2
+    [ ${VERBOSE:=0} -ge 2 ] && echo "$0:" "$@" >&2
 }
 
 toupper () {
@@ -89,10 +108,7 @@ fixpath () {
     echo "$@" | sed -e 's:^[[:space:]]*::' -e 's:[[:space:]]*$::' -e 's:[[:space:]]*//*[[:space:]]*:/:g'
 }
 
-install_file () {
-    srcpath="$1"
-    ext="$2"
-
+install_track () {
     while IFS='=' read tag value; do
         case $tag in
             TITLE|ALBUM|ARTIST|GENRE|DATE)
@@ -103,31 +119,45 @@ install_file () {
                 TRACKNUMBER=${TRACKNUMBER:=$(expr ${STARTNUMBER:-1} + $value - 1)}
                 ;;
             *)
-                debug "Ignoring tag '$tag'"
+                debug "Skipping tag '$tag'"
                 ;;
         esac
     done
 
-    if [ "$TRACKNUMBER" -a "$PADDING" ]; then
-        TRACKNUMBER=$(printf "%0.${PADDING}d" $TRACKNUMBER)
+    if [ "$TRACKNUMBER" -a "$TRACKPADDING" ]; then
+        TRACKNUMBER=$(printf "%0.${TRACKPADDING}d" $TRACKNUMBER)
     fi
 
-    destpath=$(fixpath "$(eval echo $FORMAT).$ext")
+    suffix="${1##*.}"
+    destpath=$(fixpath "$(eval echo $OUTPUTFORMAT).$suffix")
     destdir=$(dirname "$destpath")
 
-    info "'$srcpath' -> '$BASEDIR/$destpath'"
-
-    [ "$DRYRUN" ] && return
-
-    mkdir -p "$BASEDIR/$destdir" || die
-    cp "$srcpath" "$BASEDIR/$destpath" || die
+    if [ "$DRYRUN" ]; then
+        echo "$destpath"
+    else
+        info "'$1' -> '$OUTPUTDIR/$destpath'"
+        mkdir -p "$OUTPUTDIR/$destdir" || die
+        cp "$srcpath" "$OUTPUTDIR/$destpath" || die
+    fi
 }
 
-install_flac () {
-    $METAFLAC --export-tags-to=- "$1" | grep '^[[:alnum:]]*=' | install_file "$1" flac
+install_dir () {
+    find "$1" -type f | while read filename; do
+        filetype=$(tolower "${filename##*.}")
+
+        if type "handle_$filetype" > /dev/null; then
+            handle_$filetype "$filename" || die
+        else
+            warn "$filename: Unknown file type"
+        fi
+    done
 }
 
-parse_mp3_tags () {
+handle_flac () {
+    $METAFLAC --export-tags-to=- "$1" | grep '^[[:alnum:]]*=' | install_track "$1"
+}
+
+handle_mp3 () {
     $ID3V2 -R "$1" | while IFS=': ' read tag value; do
         case "$tag" in
             TIT?)
@@ -152,47 +182,55 @@ parse_mp3_tags () {
                 debug "Ignoring tag '$tag': $value"
                 ;;
         esac
-    done
+    done | install_track "$1"
 }
 
-install_mp3 () {
-    parse_mp3_tags "$1" | install_file "$1" mp3
+handle_zip () {
+    ZIPDIR=$($MKTEMP -d -t "$(basename $0).XXXXXXXXXX") || die
+    trap 'rm -rf "$ZIPDIR"' HUP INT PIPE TERM EXIT
+
+    unzip -q -d "$ZIPDIR" "$1" || die
+    install_dir "$ZIPDIR" || die
+    rm -rf "$ZIPDIR" || die
 }
 
-install_zip () {
-    mkdir -p "$TMPDIR" || die
-    unzip -q -d "$TMPDIR" "$1" || die
-    find "$TMPDIR" -type f | while read filename; do
-        basename=$(basename "$filename")
-        filetype=$(tolower "${basename##*.}")
-
-        if type "install_$filetype" > /dev/null; then
-            install_$filetype "$filename" || die
-        else
-            warn "$filename: Unknown file type"
-        fi
-    done
-    rm -rf "$TMPDIR" || die
-}
-
-# usage information
-usage=$(cat <<EOF
+usage () {
+    cat <<EOF
 Usage: $PROGRAM [OPTION]... FILE...
-Execute command on each FILE.
+Install media files.
 
-  -c COMMAND  execute COMMAND [$command]
-  -h          print this message and exit
-  -o FILE     write to FILE instead of standard output
-  -v          produce more verbose output
+  -a ARTIST     override artist information
+  -A ALBUM      override album information
+  -c FILENAME   read configuration from file
+  -d DIRECTORY  output directory
+  -f FORMAT     output format string
+  -l            only list generated file names, do not install
+  -p PADDING    set track number padding width [$TRACKPADDING]
+  -r            handle directories recursively
+  -s TRACKNO    start track number
+  -t TITLE      override title information
+  -v            produce more verbose output
 
 Examples:
-  $PROGRAM *.sh             Check syntax of shell scripts
-  $PROGRAM -c "cmp f" *     Compare all files to f
+  $PROGRAM *.mp3             Install MP3 files
+  $PROGRAM -r ~/Downloads    Install all files from Downloads
 EOF
-)
+
+    exit $1
+}
+
+# load system defaults
+if [ -r /etc/$PROGRAM.conf ]; then
+    . /etc/$PROGRAM.conf
+fi
+
+# load user preferences
+if [ -r $HOME/.$PROGRAM ]; then
+    . $HOME/.$PROGRAM
+fi
 
 # parse command line options
-while getopts ":a:A:c:d:f:hnp:s:t:vV" opt; do
+while getopts ":a:A:c:d:f:lp:rs:t:v" opt; do
     case $opt in 
         a)
             ARTIST="$OPTARG"
@@ -205,20 +243,19 @@ while getopts ":a:A:c:d:f:hnp:s:t:vV" opt; do
             . "$OPTARG"
             ;;
         d)
-            BASEDIR="$OPTARG"
+            OUTPUTDIR="$OPTARG"
             ;;
         f)
-            FORMAT="$OPARG"
+            OUTPUTFORMAT="$OPARG"
             ;;
-        h) 
-            echo "$usage"
-            exit
-            ;;
-        n)
+        l)
             DRYRUN=1
             ;;
         p)
-            PADDING="$OPTARG"
+            TRACKPADDING="$OPTARG"
+            ;;
+        r)
+            RECURSE=1
             ;;
         s)
             STARTNUMBER="$OPTARG"
@@ -229,11 +266,8 @@ while getopts ":a:A:c:d:f:hnp:s:t:vV" opt; do
         v)
             VERBOSE=$((VERBOSE + 1))
             ;;
-        V)
-            ARTIST="$VARIOUS"
-            ;;
         *) 
-            die "$usage"
+            usage 1
             ;;
     esac
 done
@@ -241,19 +275,25 @@ done
 shift $(($OPTIND - 1))
 
 # check for required arguments
-[ $# -ne 0 ] || die "$usage"
+[ $# -ne 0 ] || usage
 
-# execute command on each file
 for filename; do
-    [ -f "$filename" ] || die "$filename: No such file"
+    [ -e "$filename" ] || die "$filename: No such file"
 
-    basename=$(basename "$filename")
-    filetype=$(tolower "${basename##*.}")
-
-    if type "install_$filetype" > /dev/null; then
-        install_$filetype "$filename"
+    if [ -d "$filename" ]; then
+        if [ "$RECURSE" ]; then
+            install_dir "$filename"
+        else
+            warn "$filename: Skipping directory"
+        fi
     else
-        warn "$filename: Unknown file type"
+        filetype=$(tolower "${filename##*.}")
+
+        if type "handle_$filetype" > /dev/null; then
+            handle_$filetype "$filename"
+        else
+            warn "$filename: Unknown file type"
+        fi
     fi
 done
 
