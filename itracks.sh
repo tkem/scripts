@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# itracks.sh - install media files
+# itracks.sh - copy media files to locations based on meta tags
 #
 # Copyright (C) 2013 Thomas Kemmer <tkemmer@computer.org>
 #
@@ -111,7 +111,7 @@ fixpath () {
 install_track () {
     while IFS='=' read tag value; do
         case $tag in
-            TITLE|ALBUM|ARTIST|GENRE|DATE)
+            TITLE|VERSION|ALBUM|ARTIST|PERFORMER|GENRE|DATE)
                 eval $tag="\${$tag:=$(mungename $value)}"
                 ;;
             TRACKNUMBER)
@@ -119,7 +119,7 @@ install_track () {
                 TRACKNUMBER=${TRACKNUMBER:=$(expr ${STARTNUMBER:-1} + $value - 1)}
                 ;;
             *)
-                debug "Skipping tag '$tag'"
+                debug "Skipping tag '$tag=$value'"
                 ;;
         esac
     done
@@ -158,7 +158,7 @@ handle_flac () {
 }
 
 handle_mp3 () {
-    $ID3V2 -R "$1" | while IFS=': ' read tag value; do
+    $ID3V2 -R "$1" | grep '^[[:alnum:]]*:' | while IFS=': ' read tag value; do
         case "$tag" in
             TIT?)
                 echo "TITLE=$value"
@@ -179,7 +179,7 @@ handle_mp3 () {
                 echo "GENRE=${value%%(*}"
                 ;;
             *)
-                debug "Ignoring tag '$tag': $value"
+                debug "$1: Skipping tag '$tag=$value'"
                 ;;
         esac
     done | install_track "$1"
@@ -197,23 +197,19 @@ handle_zip () {
 usage () {
     cat <<EOF
 Usage: $PROGRAM [OPTION]... FILE...
-Install media files.
+Copy media files to locations based on meta tags.
 
   -a ARTIST     override artist information
   -A ALBUM      override album information
   -c FILENAME   read configuration from file
-  -d DIRECTORY  output directory
-  -f FORMAT     output format string
+  -d DIRECTORY  set output directory [$OUTPUTDIR]
   -l            only list generated file names, do not install
+  -o FORMAT     set output format [$OUTPUTFORMAT]
   -p PADDING    set track number padding width [$TRACKPADDING]
   -r            handle directories recursively
-  -s TRACKNO    start track number
+  -s NUMBER     start numbering of tracks at NUMBER
   -t TITLE      override title information
   -v            produce more verbose output
-
-Examples:
-  $PROGRAM *.mp3             Install MP3 files
-  $PROGRAM -r ~/Downloads    Install all files from Downloads
 EOF
 
     exit $1
@@ -230,7 +226,7 @@ if [ -r $HOME/.$PROGRAM ]; then
 fi
 
 # parse command line options
-while getopts ":a:A:c:d:f:lp:rs:t:v" opt; do
+while getopts ":a:A:c:d:lo:p:rs:t:v" opt; do
     case $opt in 
         a)
             ARTIST="$OPTARG"
@@ -245,11 +241,11 @@ while getopts ":a:A:c:d:f:lp:rs:t:v" opt; do
         d)
             OUTPUTDIR="$OPTARG"
             ;;
-        f)
-            OUTPUTFORMAT="$OPARG"
-            ;;
         l)
             DRYRUN=1
+            ;;
+        o)
+            OUTPUTFORMAT="$OPTARG"
             ;;
         p)
             TRACKPADDING="$OPTARG"
