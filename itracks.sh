@@ -63,6 +63,45 @@
 # information on ISRC numbers.
 #
 
+# Tag mappings [http://minimserver.com/ug-library.html#Tag%20mappings]
+#
+# FLAC/Vorbis           ID3v2.2         ID3v2.3         ID3v2.4         iTunes
+#                                
+# ALBUM                 TAL             TALB            TALB            ©alb
+# ALBUMARTIST           TP2             TPE2            TPE2            aART
+# ALBUMARTISTSORT       TS2             TSO2            TSO2            soaa
+# ALBUMSORT             TSA             TSOA            TSOA            soal
+# ARTIST                TP1             TPE1            TPE1            ©ART
+# ARTISTSORT            TSP             TSOP            TSOP            soar
+# BPM                   TBP             TBPM            TBPM            tmpo
+# COMMENT               COM             COMM            COMM            ©cmt
+# COMPILATION           TCP             TCMP            TCMP            cpil
+# COMPOSER              TCM             TCOM            TCOM            ©wrt
+# COMPOSERSORT          TSC             TSOC            TSOC            soco
+# CONDUCTOR             TP3             TPE3            TPE3             
+# CONTENTGROUP          TT1             TIT1            TIT1            ©grp
+# COPYRIGHT             TCR             TCOP            TCOP            cprt
+# DATE                  TYE, TDA        TYER, TDAT      TDRC            ©day
+# DISCNUMBER            TPA             TPOS            TPOS            disk
+# DISCSUBTITLE                                          TSST                            
+# ENCODEDBY             TEN             TENC            TENC            ©too
+# GENRE                 TCO             TCON            TCON            gnre, ©gen
+# ISRC                  TRC             TSRC            TSRC      
+# LABEL                 TPB             TPUB            TPUB     
+# LANGUAGE              TLA             TLAN            TLAN             
+# LYRICIST              TXT             TEXT            TEXT             
+# LYRICS                ULT             USLT            USLT            ©lyr
+# MOOD                                                  TMOO     
+# ORIGINALDATE          TOR             TORY            TDOR             
+# RELEASEDATE                                           TDRL                            
+# REMIXER               TP4             TPE4            TPE4     
+# SUBTITLE              TT3             TIT3            TIT3     
+# TITLE                 TT2             TIT2            TIT2            ©nam
+# TITLESORT             TST             TSOT            TSOT            sonm
+# TOTALDISCS            TPA             TPOS            TPOS            disk
+# TOTALTRACKS           TRK             TRCK            TRCK            trkn
+# TRACKNUMBER           TRK             TRCK            TRCK            trkn
+
 PROGRAM=$(basename $0 .sh)
 
 ID3V2=id3v2
