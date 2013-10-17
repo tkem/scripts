@@ -176,7 +176,7 @@ install_track () {
     else
         info "'$1' -> '$OUTPUTDIR/$destpath'"
         mkdir -p "$OUTPUTDIR/$destdir" || die
-        cp "$srcpath" "$OUTPUTDIR/$destpath" || die
+        cp "$1" "$OUTPUTDIR/$destpath" || die
     fi
 }
 
