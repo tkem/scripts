@@ -150,6 +150,7 @@ fixpath () {
 
 install_track () {
     while IFS='=' read tag value; do
+        tag=$(toupper $tag) # for FLAC lowercase tags (e.g. topspin)
         case $tag in
             TITLE|VERSION|ALBUM|ARTIST|PERFORMER|GENRE|DATE)
                 eval $tag="\${$tag:=$(mungename $value)}"
@@ -159,7 +160,7 @@ install_track () {
                 TRACKNUMBER=${TRACKNUMBER:=$(expr ${STARTNUMBER:-1} + $value - 1)}
                 ;;
             *)
-                debug "Skipping tag '$tag=$value'"
+                debug "Skipping tag '$tag = $value'"
                 ;;
         esac
     done
