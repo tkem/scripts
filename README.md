@@ -1,4 +1,1 @@
-scripts
-=======
-
-A collection of scripts for my personal daily use
+A collection of scripts for my personal daily use.
