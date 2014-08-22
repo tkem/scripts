@@ -10,7 +10,7 @@ sub prompt {
 }
 
 my %opts = ();
-getopts("iuv", \%opts) and @ARGV >= 2 or die << "EOT";
+getopts("inuv", \%opts) and @ARGV >= 2 or die << "EOT";
 Usage: $0 [-iuv] expr file...
 EOT
 
@@ -28,7 +28,10 @@ foreach (@ARGV) {
     next if $opts{i} and not prompt("$orig -> $_");
 
     print "$orig -> $_\n" if $opts{v};
-    rename $orig => $_ or warn "$0: $orig -> $_: $!\n";
+
+    unless ($opts{n}) {
+        rename $orig => $_ or warn "$0: $orig -> $_: $!\n";
+    }
 }
 
 __END__
@@ -72,7 +75,7 @@ Be verbose about what is being done.
 
 =head1 EXAMPLES
 
-=over 
+=over
 
 =item Rename all C<.doc> files to C<.txt>:
 
