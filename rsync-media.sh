@@ -1,6 +1,6 @@
 #!/bin/sh
 
-MEDIA_DIRS="Music Pictures Videos"
+MEDIA_DIRS="Music Pictures Videos eBooks"
 RSYNC_OPTS="-a --delete --exclude=.* --exclude=tmp"
 
 if [ $# -lt 1 ]; then
