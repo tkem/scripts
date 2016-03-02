@@ -1,6 +1,9 @@
 #!/bin/sh
+METAFLAC=metaflac
 
-DEBUG=
+cuesheet () {
+    $METAFLAC --show-tag=CUESHEET "$1" | sed -e "1s/^CUESHEET=//" -e '/^$/d'
+}
 
 for file; do
     dirname=$(dirname "$file")
@@ -8,9 +11,8 @@ for file; do
     cuefile="$dirname/$basename.cue"
 
     if [ -n "$DEBUG" ]; then
-        echo $cuefile
-        metaflac --show-tag=CUESHEET "$file" | sed s/CUESHEET=// | diff "$cuefile" -
+        cuesheet "$file" | diff "$cuefile" -
     else
-        metaflac --show-tag=CUESHEET "$file" | sed s/CUESHEET=// > "$cuefile"
+        cuesheet "$file" > "$cuefile"
     fi
 done
