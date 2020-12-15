@@ -16,15 +16,6 @@ SRC="$1"
 DEST="$2"
 shift 2
 
-# special handling for dd-wrt
-case $DEST in
-    /*)
-        ;;
-    *)
-        RSYNC_OPTS="$RSYNC_OPTS --rsync-path=/opt/usr/bin/rsync-ld"
-        ;;
-esac
-
 for d in "$@"; do
     rsync $RSYNC_OPTS "$SRC/$d/" "$DEST/$d/"
 done

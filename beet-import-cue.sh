@@ -23,7 +23,7 @@ for cuefile; do
     fi
     # mirror folder structure for multi-disc releases
     $MKDIR_P "$destdir" || exit 1
-    $SHNSPLIT -d "$destdir" -f "$cuefile" -o flac -a "$basename." "$wavfile"
+    $SHNSPLIT -d "$destdir" -f "$cuefile" -o flac -a "$basename." "$wavfile" || cp "$wavfile" "$destdir/$basename.flac"
     # FIXME: track #0 handling
     rm -f "$destdir/$basename".00.flac
     $CUETAG "$cuefile" "$destdir/$basename".*.flac
