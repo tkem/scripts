@@ -1,13 +1,13 @@
 #!/bin/sh
 
-RSYNC_OPTS="-a --delete --exclude='.*' --exclude=tmp"
+RSYNC_OPTS="-a -s --delete --exclude='.*' --exclude=tmp"
 
-while [ $# -gt 2 -a ! -d $1 ]; do
+while [ $# -gt 2 -a ! -d "$1" ]; do
     RSYNC_OPTS="$RSYNC_OPTS $1"
     shift
 done
 
-if [ $# -lt 3 -o ! -d $1 ]; then
+if [ $# -lt 3 -o ! -d "$1" ]; then
     echo "Usage: $0 [OPTION]... SRC DEST DIR..." >&2
     exit 1
 fi
