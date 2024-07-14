@@ -29,4 +29,4 @@ for cuefile; do
     $CUETAG "$cuefile" "$destdir/$basename".*.flac
 done
 
-$BEET import "$TMPDIR"
+$BEET import -t "$TMPDIR"
