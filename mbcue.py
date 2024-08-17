@@ -9,8 +9,8 @@ def parse_cue(fp):
     cue = {}
     regex = re.compile(r"(TRACK\s+\w+|INDEX\s+\w+|REM\s+\w+|\w+)\s+(.*)")
     track = None
-    for line in fp.readlines():
-        m = regex.match(line.strip())
+    for line in (s.strip() for s in fp.readlines() if s.strip()):
+        m = regex.match(line)
         if not m:
             print(f'Skipping CUE sheet line "{line}"', file=sys.stderr)
         elif m[1].startswith("TRACK"):
@@ -23,15 +23,15 @@ def parse_cue(fp):
     return cue
 
 
-def print_cue(cue):
-    # FIXME: non-track items must come before track items!
-    for k, v in cue.items():
-        if k.startswith("TRACK"):
-            print(f"  {k} AUDIO")
-            for tk, tv in v.items():
-                print(f"    {tk} {tv}")
-        else:
-            print(k, v)
+def print_cue(cue, fp):
+    # non-track items must come before track items
+    for k, v in ((k, cue[k]) for k in cue if k != "FILE" and not k.startswith("TRACK")):
+        print(k, v, file=fp)
+    print("FILE", cue["FILE"], file=fp)
+    for k, v in ((k, cue[k]) for k in cue if k.startswith("TRACK")):
+        print(f"  {k} AUDIO", file=fp)
+        for tk, tv in v.items():
+            print(f"    {tk} {tv}", file=fp)
 
 
 def update_cue(cue, data, discno=None):
@@ -42,6 +42,7 @@ def update_cue(cue, data, discno=None):
     if len(media) < 1:
         raise Exception("Item contains no media")
     if len(media) == 1:
+        discno = None
         tracks = media[0].get("tracks", [])
     else:
         discno = discno or int(cue["REM DISCNUMBER"])
@@ -52,8 +53,9 @@ def update_cue(cue, data, discno=None):
         cue["CATALOG"] = data["barcode"]
     if "date" in data:
         cue["REM DATE"] = data["date"].partition("-")[0]
-    # DISCNUMBER
-    # TOTALDISCS
+    if discno is not None:
+        cue["REM TOTALDISCS"] = len(media)
+        cue["REM DISCNUMBER"] = discno
     # if "asin" in data:
     #    cue["REM ASIN"] = data["asin"]
     for n, track in enumerate(tracks, 1):
@@ -66,10 +68,10 @@ def update_cue(cue, data, discno=None):
 def get_mb_release_id(barcode):
     url = f"https://musicbrainz.org/ws/2/release/?query=barcode:{barcode}&fmt=json"
     data = requests.get(url=url).json()
-    if data["count"] == 0:
+    if "count" not in data or data["count"] == 0:
         raise Exception(f"No release found for barcode {barcode}")
     if data["count"] != 1:
-        print(f"Multiple releases found for barcode {barcode}", file=sys.stderr)
+        raise Exception(f"Multiple releases found for barcode {barcode}")
     return data["releases"][0]["id"]
 
 
@@ -97,9 +99,11 @@ def main():
         data = requests.get(url=url+q).json()
         # json.dump(data, sys.stderr, indent=2, sort_keys=True)
         update_cue(cue, data, args.discno)
-        print_cue(cue)
+        # some tools require DOS-style line endings for cue sheets
+        out = open(sys.stdout.fileno(), mode="w", encoding="utf-8", newline="\r\n")
+        print_cue(cue, out)
     except Exception as e:
-        print(f"{parser.prog}: error:", e, file=sys.stderr)
+        print(f"{parser.prog}: {args.cue}:", e, file=sys.stderr)
         exit(1)
 
 
