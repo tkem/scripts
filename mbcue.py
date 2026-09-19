@@ -70,8 +70,8 @@ def get_mb_release_id(barcode):
     data = requests.get(url=url).json()
     if "count" not in data or data["count"] == 0:
         raise Exception(f"No release found for barcode {barcode}")
-    if data["count"] != 1:
-        raise Exception(f"Multiple releases found for barcode {barcode}")
+    #if data["count"] != 1:
+    #    raise Exception(f"Multiple releases found for barcode {barcode}")
     return data["releases"][0]["id"]
 
 

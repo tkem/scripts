@@ -1,4 +1,8 @@
 #!/bin/sh
+# dependencies:
+# - beets
+# - shntool
+# - cuetools
 
 BEET="beet"
 CUETAG="cuetag"
