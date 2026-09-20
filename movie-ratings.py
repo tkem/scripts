@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 import argparse
+import html
 import json
 import re
 import sys
+import time
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -140,10 +142,59 @@ def lookup_imdb_rating(query: str, language: Optional[str] = None) -> Optional[D
     return {"title": title, "year": str(year) if year is not None else "N/A", "rating": rating or "N/A"}
 
 
+def lookup_rotten_tomatoes_score(title: str, year: Optional[str] = None) -> Optional[Dict[str, str]]:
+    try:
+        url = f"https://www.rottentomatoes.com/search?search={requests.utils.quote(title)}"
+        response = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=15)
+        response.raise_for_status()
+        page_html = response.text
+    except Exception:
+        return None
+
+    # Scope to the "Movies" results section so TV/person matches aren't picked up.
+    section_match = re.search(r'type="movie".*?(?=<search-page-result\b|\Z)', page_html, re.DOTALL)
+    if not section_match:
+        return None
+
+    rows = re.findall(
+        r'<search-page-media-row\b([^>]*)>.*?data-qa="info-name"[^>]*>\s*([^<]+?)\s*</a>',
+        section_match.group(0),
+        re.DOTALL,
+    )
+    if not rows:
+        return None
+
+    # Search results can list unrelated movies first; use the IMDb title/year to pick the right one.
+    normalized_title = normalize_title(title)
+    best_score = None
+    best_row = None
+    for attrs, row_title in rows:
+        row_title = html.unescape(row_title)
+        row_year_match = re.search(r'release-year="(\d+)"', attrs)
+        row_year = row_year_match.group(1) if row_year_match else None
+        match_score = 0
+        if normalize_title(row_title) == normalized_title:
+            match_score += 2
+        if year and row_year == year:
+            match_score += 1
+        if best_score is None or match_score > best_score:
+            best_score = match_score
+            best_row = (attrs, row_title, row_year)
+
+    attrs, title, row_year = best_row
+    score_match = re.search(r'tomatometer-score="(\d+)"', attrs)
+    return {
+        "title": title.strip(),
+        "year": row_year or "N/A",
+        "tomatometer": f"{score_match.group(1)}%" if score_match else "N/A",
+    }
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Print each video file next to its IMDb rating score")
     parser.add_argument("files", nargs="+", help="Video files to inspect")
-    parser.add_argument("--language", choices=["de", "en"], help="Title language to prefer; defaults to preserving the title as-is")
+    parser.add_argument("-l", "--language", choices=["de", "en"], help="Title language to prefer; defaults to preserving the title as-is")
+    parser.add_argument("-p", "--pause", type=float, default=0.0, help="Seconds to pause between network requests, for rate limiting")
     args = parser.parse_args()
 
     files: List[Path] = []
@@ -165,20 +216,34 @@ def main() -> None:
         return
 
     cache: Dict[str, Optional[Dict[str, str]]] = {}
+    rt_cache: Dict[tuple, Optional[Dict[str, str]]] = {}
     for path in sorted(files, key=lambda p: p.name):
         metadata = None
         for candidate in clean_title(path):
             if candidate in cache:
                 metadata = cache[candidate]
             else:
+                if args.pause:
+                    time.sleep(args.pause)
                 metadata = lookup_imdb_rating(candidate, args.language)
                 cache[candidate] = metadata
             if metadata:
                 break
+        rt_metadata = None
         if metadata:
-            print(f"{path.name}\t{metadata['title']} ({metadata['year']})\t{metadata['rating']}")
+            cache_key = (metadata["title"], metadata["year"])
+            if cache_key in rt_cache:
+                rt_metadata = rt_cache[cache_key]
+            else:
+                if args.pause:
+                    time.sleep(args.pause)
+                rt_metadata = lookup_rotten_tomatoes_score(metadata["title"], metadata["year"])
+                rt_cache[cache_key] = rt_metadata
+        rt_part = f"RT: {rt_metadata['title']} ({rt_metadata['year']})\t{rt_metadata['tomatometer']}" if rt_metadata else "RT: N/A"
+        if metadata:
+            print(f"{path.name}\tIMDB: {metadata['title']} ({metadata['year']})\t{metadata['rating']}\t{rt_part}")
         else:
-            print(f"{path.name}\tN/A")
+            print(f"{path.name}\tN/A\t{rt_part}")
 
 
 if __name__ == "__main__":
